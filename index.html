@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teleoperation link panel</title>
+<style>
+:root {
+  --ink: #17231f; --muted: #5f6d68; --line: #d5ddd9; --bg: #ffffff; --wash: #f6f8f7;
+  --brand: #1f6f5c; --brand-mid: #8fc3b3; --brand-pale: #e6efeb;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+button:focus-visible, select:focus-visible, input:focus-visible, label.btn:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
+.hide { display: none !important; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--muted); }
+
+/* view switch */
+.views { display: flex; gap: 2px; }
+.views button { all: unset; cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 10px; border-bottom: 2px solid transparent; }
+.views button[aria-pressed="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+.status { font-size: 13px; color: var(--muted); }
+.btn { display: inline-block; cursor: pointer; white-space: nowrap; font-size: 13px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); }
+.btn:hover { border-color: var(--brand); color: var(--brand); }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+/* ---------- Stage ---------- */
+#stage { height: 100vh; min-height: 640px; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(120px, 1fr) auto auto auto; padding: 22px 40px 14px; gap: 0; }
+.st-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; }
+.st-title h1 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.15; }
+.st-title p { font-size: 14px; color: var(--ink); margin-top: 3px; }
+.st-title p.km { color: var(--muted); margin-top: 0; }
+.st-right { display: flex; align-items: center; gap: 22px; }
+.st-video { position: relative; border: 1px solid var(--line); background: var(--wash); border-radius: 4px; overflow: hidden; min-height: 0; }
+.st-video video { width: 100%; height: 100%; object-fit: contain; display: block; background: var(--wash); }
+.st-video video.src { position: absolute; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+#stage.cut { height: auto; min-height: 100vh; grid-template-rows: auto auto auto auto auto; }
+#stage.cut .st-head { padding-bottom: 8px; }
+#stage.cut .transport { position: sticky; bottom: 0; background: var(--bg); z-index: 2; }
+#stage.cut .st-total { min-height: 66px; padding-top: 4px; }
+#stage.cut .st-total .num { font-size: 60px; }
+.cutwall { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; gap: 8px; padding: 8px; background: var(--wash); }
+.cutcol { display: flex; flex-direction: column; gap: 8px; }
+.cuttile { position: relative; background: #0c1513; border-radius: 3px; overflow: hidden; cursor: zoom-in; }
+.cutwall.solo .cuttile { cursor: zoom-out; }
+.cuttile canvas { display: block; width: 100%; height: 100%; }
+.cuttile .lbl { position: absolute; left: 0; top: 0; padding: 4px 9px; font-size: 12px; line-height: 1.35; color: #fff; background: rgba(12, 21, 19, .66); border-bottom-right-radius: 3px; pointer-events: none; }
+.cuttile .hole { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; background: #0c1513; color: #c9d3cf; font-size: 14px; padding: 12px; }
+.st-video .ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.ph-t { font-family: var(--serif); font-size: 22px; }
+.ph-s { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+.st-cap { font-size: 12.5px; color: var(--muted); padding-top: 6px; min-height: 26px; display: flex; gap: 12px; align-items: center; }
+.st-cap button { all: unset; cursor: pointer; color: var(--brand); }
+.st-cap input { border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 2px 6px; font-size: 12.5px; }
+.tu-media { font-size: 12.5px; color: var(--muted); padding-top: 6px; display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; }
+.tu-media input { width: 70px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 2px 6px; font-size: 12.5px; }
+.st-total { display: flex; align-items: baseline; gap: 10px; padding: 8px 0 6px; flex-wrap: wrap; min-height: 90px; align-content: flex-end; }
+.st-total .num { font-family: var(--serif); font-size: 76px; line-height: 1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.st-total .num.wait { font-size: 40px; color: var(--muted); }
+.st-total .unit { font-family: var(--serif); font-size: 26px; }
+.st-total .cap { font-size: 16px; color: var(--muted); margin-left: 6px; }
+.st-total .sub { font-size: 13px; color: var(--muted); margin-left: 18px; }
+svg.chain { display: block; width: 100%; overflow: visible; }
+svg.chain text { font-family: var(--sans); fill: var(--ink); }
+svg.chain .n-name { font-size: 13px; font-weight: 600; }
+svg.chain .n-stat { font-size: 13px; fill: var(--muted); }
+svg.chain .s-name { font-size: 12.5px; fill: var(--muted); }
+svg.chain .s-val { font-family: var(--serif); font-size: 23px; font-variant-numeric: tabular-nums; }
+svg.chain .s-wait { font-size: 13px; fill: var(--muted); }
+svg.chain .c-lab { font-size: 12.5px; fill: var(--muted); }
+svg.chain .c-val { font-family: var(--serif); font-size: 17px; font-variant-numeric: tabular-nums; }
+svg.chain .lg { font-size: 12px; fill: var(--muted); }
+svg.chain .thin { stroke: var(--line); stroke-width: 1; fill: none; }
+svg.chain .rule { stroke: var(--muted); stroke-width: 1; fill: none; }
+.transport { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 8px; font-size: 13px; color: var(--muted); }
+.transport input[type=range] { flex: 1 1 160px; min-width: 0; accent-color: var(--brand); height: 3px; }
+.transport .tm { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.transport select { border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 3px 6px; font-size: 13px; }
+
+#tune { max-width: 1500px; margin: 0 auto; padding: 22px 40px 80px; }
+.tu-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; }
+.tu-head h1 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.15; }
+.tu-head p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.tu-sticky { position: sticky; top: 0; z-index: 5; background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0 6px; }
+.tu-sticky .transport { border: 0; margin: 0; padding: 0 0 8px; }
+#tl { display: block; width: 100%; height: 84px; cursor: ew-resize; }
+.hint { font-size: 12px; color: var(--muted); padding-top: 4px; }
+.notes { margin-top: 16px; background: var(--wash); border-left: 3px solid var(--brand-mid); padding: 10px 14px; font-size: 13px; }
+.notes li { margin: 2px 0; }
+.notes ul { margin: 0; padding-left: 18px; }
+#tune h2 { font-family: var(--serif); font-weight: 400; font-size: 21px; margin: 34px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.tu-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 4px; }
+.tu-total .num { font-family: var(--serif); font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums; }
+.tu-total .num.wait { font-size: 22px; color: var(--muted); }
+.tu-total .cap { font-size: 13px; color: var(--muted); }
+.pick { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; font-size: 13px; }
+.pick b { font-family: var(--serif); font-size: 18px; font-weight: 400; }
+.pick .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pick select, .pick input[type=number], .winsel select { border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 4px 6px; font-size: 13px; }
+.pick input[type=number] { width: 64px; }
+.pick .rng { color: var(--muted); font-variant-numeric: tabular-nums; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 12px; }
+th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+td.sec { text-align: left; background: var(--wash); font-weight: 600; font-size: 12px; color: var(--muted); }
+.winsel { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-top: 30px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.card { border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px 8px; background: var(--bg); min-width: 0; }
+.c-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.c-name { font-size: 13px; font-weight: 600; }
+.c-val { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.c-val b { font-family: var(--serif); font-weight: 400; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.card canvas { display: block; width: 100%; height: 108px; margin-top: 4px; cursor: ew-resize; }
+.c-src { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+.c-src button { all: unset; cursor: pointer; font-size: 11.5px; color: var(--muted); padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; }
+.c-src button[aria-pressed="true"] { color: var(--brand); border-color: var(--brand); }
+.nodata { font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.9; }
+.nodata span { display: inline-block; margin-right: 16px; }
+#events td { text-align: left; white-space: normal; }
+#events td:first-child { white-space: nowrap; width: 1%; color: var(--muted); }
+#events tr { cursor: pointer; }
+#events tr:hover td { background: var(--wash); }
+</style>
+</head>
+<body>
+
+<section id="stage">
+  <header class="st-head">
+    <div class="st-title">
+      <h1>Live teleoperation</h1>
+      <p id="stRoute">San Francisco to Beijing</p>
+      <p class="km" id="stKm">9,500 km</p>
+    </div>
+    <div class="st-right">
+      <span class="status" id="stStatus"></span>
+      <nav class="views" aria-label="View"><button data-view="stage" aria-pressed="true">Stage</button><button data-view="tune" aria-pressed="false">Tuning</button></nav>
+    </div>
+  </header>
+  <div class="st-video">
+    <video id="vid" class="hide" playsinline muted preload="auto"></video>
+    <div class="cutwall hide" id="cutWall"></div>
+    <div class="ph" id="vidPh">
+      <p class="ph-t">Operator view</p>
+      <p class="ph-s" id="vidPhS">awaiting feed</p>
+      <label class="btn">Choose a video file<input id="vidFile" type="file" accept="video/*" class="hide"></label>
+    </div>
+  </div>
+  <p class="st-cap" id="vidCap"></p>
+  <div>
+    <div class="st-total"><span class="num" id="stNum"></span><span class="unit" id="stUnit">ms</span><span class="cap">camera to eye</span><span class="sub" id="stSub"></span></div>
+    <svg class="chain" id="stChain" role="img" aria-label="Video path drawn to scale"></svg>
+  </div>
+  <footer class="transport" id="stTransport">
+    <button class="btn" id="stPlay">Play</button>
+    <button class="btn hide" id="stLive">Back to live</button>
+    <span class="tm" id="stTime"></span>
+    <input type="range" id="stSeek" min="0" max="1000" value="0" aria-label="Position">
+    <select id="stSpeed" aria-label="Speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option><option value="60">60×</option></select>
+  </footer>
+</section>
+
+<section id="tune" class="hide">
+  <header class="tu-head">
+    <div><h1>Teleoperation link monitor · Tuning</h1><p id="tuInfo"></p></div>
+    <nav class="views" aria-label="View"><button data-view="stage" aria-pressed="false">Stage</button><button data-view="tune" aria-pressed="true">Tuning</button></nav>
+  </header>
+  <div class="tu-sticky">
+    <div class="transport">
+      <button class="btn" id="tuPlay">Play</button>
+      <button class="btn hide" id="tuLive">Back to live</button>
+      <select id="tuSpeed" aria-label="Speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option><option value="60">60×</option></select>
+      <label><input type="checkbox" id="tuSkip" checked> Skip gaps with no data while playing</label>
+      <span class="tm" id="tuTime" style="margin-left:auto"></span>
+    </div>
+    <canvas id="tl"></canvas>
+    <p class="hint">Drag to move the playhead. Shift-drag selects span A. Alt (Option)-drag selects span B. The timeline is in Beijing time. Bottom strip: light green = data present, dark green = total latency valid at that moment. The thin grey strip above = operator video present.</p>
+    <div class="tu-media" id="tuMedia"></div>
+  </div>
+  <div class="notes hide" id="tuNotes"></div>
+
+  <h2>The link at this moment</h2>
+  <div class="tu-total"><span class="num" id="tuNum"></span><span class="cap" id="tuSub"></span></div>
+  <svg class="chain" id="tuChain" role="img" aria-label="Video path drawn to scale"></svg>
+
+  <h2>Compare two spans</h2>
+  <div class="pick">
+    <b>A</b><div class="row"><select id="selA"></select><button class="btn" data-set="A0">Start = playhead</button><button class="btn" data-set="A1">End = playhead</button><span class="rng" id="rngA"></span></div>
+    <b>B</b><div class="row"><select id="selB"></select><button class="btn" data-set="B0">Start = playhead</button><button class="btn" data-set="B1">End = playhead</button><span class="rng" id="rngB"></span></div>
+    <span></span><div class="row"><label>When picking a marked span, skip its first <input type="number" id="skipS" min="0" max="600" value="0"> s</label></div>
+  </div>
+  <table id="cmp"></table>
+
+  <div class="winsel"><label for="win">Time range of the charts</label>
+    <select id="win"><option value="all">Whole session</option><option value="mark">Marked span at the playhead</option><option value="near">2 minutes either side of the playhead</option><option value="A">Span A</option><option value="B">Span B</option></select>
+    <span>Click or drag on any chart to move the playhead. Hollow points = readings taken while clock sync was not reliable.</span></div>
+  <div id="secs"></div>
+
+  <h2>Events</h2>
+  <table id="events"></table>
+</section>
+
+<script>
+'use strict';
+const C = {ink: '#17231f', muted: '#5f6d68', line: '#d5ddd9', wash: '#f6f8f7', brand: '#1f6f5c', mid: '#8fc3b3', pale: '#e6efeb', bg: '#ffffff'};
+const SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+const SERIF = 'Georgia, "Times New Roman", serif';
+const FRAME_HOLD = 8;
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+const S = {
+  meta: null, status: {}, defs: [], defById: {}, secs: [], segs: {}, emptySegs: [],
+  series: {}, frames: [], frameT: [], marks: [], events: [], notes: {}, seq: 0,
+  t0: 0, t1: 1, T: 0, playing: false, speed: 1, follow: false, skip: true,
+  view: 'stage', win: 'all', A: null, B: null, lost: false,
+  media: {segs: [], loose: [], dir: null}, mediaOff: 0, localVid: null,
+  cut: null, C: 0, cutSolo: null, cutSound: false,
+};
+
+const EN = {
+  awaiting: 'awaiting feed', omitted: 'left out, see note', ms: 'ms',
+  nodes: {beijing: 'Beijing · Luna', relay: 'Relay', headset: 'San Francisco · headset'},
+  stat: {
+    bitrate: v => v == null ? 'bitrate awaiting feed' : `${fmtNum(v)} Mbps`,
+    bitrate_rx: v => `${(Math.round(v * 10) / 10).toFixed(1)} Mbps received at the relay`,
+    fps: v => v == null ? 'frame rate awaiting feed' : `${Math.round(v)} frames per second`,
+    rtt: v => v == null ? null : `${fmtMs(v)} ms round trip from home`,
+    loss: v => v == null ? null : `${fmtPct(v)}% loss`,
+    fec: v => v == null ? null : `${fmtInt(v)} ${v === 1 ? 'packet' : 'packets'} repaired by error correction in the last 10 s`,
+  },
+  cmd: 'Commands, headset to robot',
+  cmdStat: {
+    rate: (v, src) => v == null ? ['', 'rate awaiting feed'] : [fmtInt(v), src === 'sent' ? 'control packets per second' : 'per second queued at headset'],
+    rtt: v => v == null ? ['', 'round trip awaiting feed'] : [fmtMs(v) + ' ms', 'round trip'],
+    loss: v => v == null ? ['', 'loss awaiting feed'] : [fmtPct(v) + '%', 'loss'],
+    dropped: v => [fmtInt(v), 'per second dropped at headset'],
+  },
+  lgMachine: 'Time in machines', lgLine: 'Time on the line', lgWait: 'Awaiting feed',
+  rest: (r, t) => `${fmtMs(r)} of ${fmtMs(t)} ms not yet attributed to a measured segment`,
+  over: x => `decode is left out here: after packet loss the receiver's decode statistic (${fmtMs(x)} ms) no longer fits inside the measured total`,
+  noteEst: '≈ line time is half of the measured round trip',
+  noteMed: 'capture and encode are medians from the robot\'s video sender',
+  noteAvg: w => `jitter buffer and decode are averages ${w == null ? 'since connect' : 'over the last ' + enDur(w)}, from the receiver's WebRTC stats`,
+  why: {nofeed: '', clock: 'headset and camera clocks not synced', sync: 'clock sync not reliable', nosample: 'no frames matched to camera time'},
+};
+const ZH = {
+  awaiting: 'awaiting data', omitted: 'left out, see note', ms: 'ms',
+  nodes: {beijing: 'Beijing · Luna', relay: 'Relay', headset: 'San Francisco · headset'},
+  stat: {
+    bitrate: v => v == null ? 'bitrate: awaiting data' : `bitrate ${fmtNum(v)} Mbps`,
+    bitrate_rx: v => `relay receives ${(Math.round(v * 10) / 10).toFixed(1)} Mbps (last 2 min)`,
+    fps: v => v == null ? 'displayed frame rate: awaiting data' : `${Math.round(v)} frames/s displayed`,
+    rtt: v => v == null ? null : `home to relay round trip ${fmtMs(v)} ms (Mac ping)`,
+    loss: v => v == null ? null : `ping loss ${fmtPct(v)}%`,
+    fec: v => v == null ? null : `FEC repaired ${fmtInt(v)} ${v === 1 ? 'packet' : 'packets'} in the last 10 s`,
+  },
+  cmd: 'Commands (headset → robot)',
+  cmdStat: {
+    rate: (v, src) => v == null ? ['', 'rate: awaiting data'] : [fmtInt(v), src === 'sent' ? 'per second (control packets actually sent)' : 'per second (queued, not necessarily sent)'],
+    rtt: v => v == null ? ['', 'round trip: awaiting data'] : [fmtMs(v) + ' ms', 'round trip'],
+    loss: v => v == null ? ['', 'loss: awaiting data'] : [fmtPct(v) + '%', 'loss'],
+    dropped: v => [fmtInt(v), 'per second dropped locally at the headset'],
+  },
+  lgMachine: 'Time in machines', lgLine: 'Time on the line', lgWait: 'Awaiting data',
+  rest: (r, t) => `${fmtMs(r)} of the ${fmtMs(t)} ms total is not attributed to a measured segment`,
+  over: x => `decode is left out: after packet loss the receiver's decode statistic (reports ${fmtMs(x)} ms) no longer agrees with the measured total`,
+  noteEst: '≈ line time is estimated as half of the measured round trip',
+  noteMed: 'capture and encode are medians measured by the Beijing sender itself (camera trigger to encoder input, plus encoder time)',
+  noteAvg: w => `jitter buffer and decode are per-frame averages ${w == null ? 'since connect' : 'over the last ' + zhDur(w)} (derived from the receiver's cumulative WebRTC stats; the log prints whole milliseconds, so a shorter window would have a rounding error above ±5 ms)`,
+  why: {nofeed: 'no headset data', clock: 'headset and camera clocks not synced (clock=0)', sync: 'sync round trip too large, clock offset not reliable', nosample: 'no frames matched to camera time (n=0)'},
+};
+
+function fmtInt(v) { return Math.round(v).toLocaleString('en-US'); }
+function fmtMs(v) { return Math.abs(v) < 10 ? (Math.round(v * 10) / 10).toString() : fmtInt(v); }
+function fmtPct(v) { return Math.abs(v) < 10 ? (Math.round(v * 10) / 10).toString() : String(Math.round(v)); }
+function enDur(s) { s = Math.round(s); return s < 90 ? `${s} s` : (s % 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s / 60} min`); }
+function zhDur(s) { s = Math.round(s); return s < 90 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`; }
+function fmtNum(v) {
+  const a = Math.abs(v);
+  if (a >= 1000) return fmtInt(v);
+  if (a >= 100) return String(Math.round(v));
+  if (a >= 10) return String(Math.round(v * 10) / 10);
+  return String(Math.round(v * 100) / 100);
+}
+function bsearch(arr, t) {
+  let lo = 0, hi = arr.length - 1, r = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (arr[m] <= t) { r = m; lo = m + 1; } else hi = m - 1; }
+  return r;
+}
+const _dtf = {};
+function tfmt(t, tz, opt) {
+  const k = tz + JSON.stringify(opt);
+  if (!_dtf[k]) _dtf[k] = new Intl.DateTimeFormat('en-GB', Object.assign({timeZone: tz, hour12: false}, opt));
+  return _dtf[k].format(new Date(t * 1000));
+}
+const SF = 'America/Los_Angeles', BJ = 'Asia/Shanghai';
+const hms = {hour: '2-digit', minute: '2-digit', second: '2-digit'};
+const hm = {hour: '2-digit', minute: '2-digit'};
+const dm = {day: 'numeric', month: 'short'};
+const dmy = {day: 'numeric', month: 'short', year: 'numeric'};
+function zhClock(t) { return tfmt(t, BJ, hms); }
+function zhDate(t, tz) { const p = {}; for (const x of new Intl.DateTimeFormat('en-GB', {timeZone: tz, month: '2-digit', day: '2-digit'}).formatToParts(new Date(t * 1000))) p[x.type] = x.value; return `${p.month}-${p.day}`; }
+function zhRange(r) { return r ? `${zhClock(r[0])} – ${zhClock(r[1])} (${Math.round(r[1] - r[0])} s)` : ''; }
+const _mc = document.createElement('canvas').getContext('2d');
+function tw(text, font) { _mc.font = font; return _mc.measureText(text).width; }
+
+function frameAt(T) {
+  const i = bsearch(S.frameT, T);
+  if (i < 0) return null;
+  return T - S.frameT[i] > FRAME_HOLD ? null : S.frames[i];
+}
+function valueAt(id, T) {
+  const s = S.series[id], d = S.defById[id];
+  if (!s || !d) return null;
+  const i = bsearch(s.t, T);
+  if (i < 0 || T - s.t[i] > d.hold) return null;
+  return s.v[i];
+}
+
+class Chain {
+  constructor(svg, lang, big) {
+    this.svg = svg; this.L = lang === 'zh' ? ZH : EN; this.lang = lang; this.big = big;
+    this.frame = undefined; this.key = ''; this.cur = null; this.from = null; this.to = null; this.raf = 0; this.W = 0;
+    new ResizeObserver(() => this.layout(true)).observe(svg);
+  }
+  set(frame) { if (frame === this.frame) return; this.frame = frame; this.layout(false); }
+  segs() { return this.frame ? this.frame.segs : S.emptySegs; }
+  layout(snap) {
+    const W = this.svg.clientWidth;
+    if (!W) return;
+    if (W !== this.W) snap = true;
+    this.W = W;
+    const segs = this.segs(), n = segs.length;
+    const known = segs.filter(s => s.ms != null);
+    const nUnk = n - known.length;
+    const sum = known.reduce((a, s) => a + Math.max(s.ms, 0), 0);
+    let widths;
+    if (!known.length || sum <= 0) widths = segs.map(() => W / n);
+    else {
+      const pw = nUnk ? Math.max(96, Math.min(170, W * 0.13)) : 0;
+      widths = segs.map(s => s.ms == null ? pw : Math.max(3, (W - pw * nUnk) * Math.max(s.ms, 0) / sum));
+    }
+    const tot = widths.reduce((a, b) => a + b, 0);
+    widths = widths.map(w => w * W / tot);
+    const key = segs.map(s => s.id + (s.ms == null ? '?' : '')).join('|');
+    if (snap || !this.cur || key !== this.key || this.cur.length !== n) {
+      cancelAnimationFrame(this.raf); this.key = key; this.cur = widths; this.draw(); return;
+    }
+    this.from = this.cur.slice(); this.to = widths;
+    if (this.from.every((w, i) => Math.abs(w - widths[i]) < 0.5)) { this.cur = widths; this.draw(); return; }
+    cancelAnimationFrame(this.raf);
+    const t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / 600), e = 1 - Math.pow(1 - k, 3);
+      this.cur = this.from.map((w, i) => w + (this.to[i] - w) * e);
+      this.draw();
+      if (k < 1) this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  draw() {
+    const L = this.L, W = this.W, f = this.frame, segs = this.segs(), n = segs.length;
+    const yN1 = 13, yN2 = 31, yBr = 42, yB = 52, hB = this.big ? 44 : 32;
+    const yC0 = yB + hB + 3, yL1 = yB + hB + 36, yL2 = yL1 + 28, yCmd = yL2 + 30, yLg = yCmd + 56, yNt = yLg + 20, H = yNt + 22 + (this._extra || 0);
+    const g = []; let x = 0;
+    segs.forEach((s, i) => { g.push({s, def: S.segs[s.id] || {kind: 'machine'}, x, w: this.cur[i]}); x += this.cur[i]; });
+    let o = '';
+    const fN = '600 13px ' + SANS, fS = '13px ' + SANS;
+    const nodes = (f && f.nodes) || {beijing: [['bitrate', null]], relay: [['rtt', null], ['loss', null]], headset: [['fps', null]]};
+    const stat = id => {
+      const parts = nodes[id].map(([k, v]) => L.stat[k](v)).filter(Boolean);
+      return parts.length ? parts.join(' · ') : L.awaiting;
+    };
+    const span = id => { const a = g.filter(q => q.def.node === id); return a.length ? [a[0].x, a[a.length - 1].x + a[a.length - 1].w] : null; };
+    const bj = span('beijing'), hs = span('headset');
+    let bjEnd = 0, hsStart = W;
+    if (bj) {
+      o += `<path class="thin" d="M${bj[0] + .5} ${yBr + 6}V${yBr}H${bj[1] - 1.5}V${yBr + 6}"/>`;
+      o += `<text class="n-name" x="0" y="${yN1}">${esc(L.nodes.beijing)}</text><text class="n-stat" x="0" y="${yN2}">${esc(stat('beijing'))}</text>`;
+      bjEnd = Math.max(tw(L.nodes.beijing, fN), tw(stat('beijing'), fS));
+    }
+    if (hs) {
+      o += `<path class="thin" d="M${hs[0] + 1.5} ${yBr + 6}V${yBr}H${hs[1] - .5}V${yBr + 6}"/>`;
+      o += `<text class="n-name" x="${W}" y="${yN1}" text-anchor="end">${esc(L.nodes.headset)}</text><text class="n-stat" x="${W}" y="${yN2}" text-anchor="end">${esc(stat('headset'))}</text>`;
+      hsStart = W - Math.max(tw(L.nodes.headset, fN), tw(stat('headset'), fS));
+    }
+    const rh = g.find(q => q.s.id === 'relay_home'), mg = g.find(q => q.s.id === 'bj_home');
+    if (rh || mg) {
+      const rx = rh ? rh.x : mg.x + mg.w / 2;
+      if (rh) o += `<path class="thin" d="M${rx} ${yBr - 2}V${yB - 2}"/>`;
+      const half = Math.max(tw(L.nodes.relay, fN), tw(stat('relay'), fS)) / 2;
+      const lx = Math.max(bjEnd + half + 18, Math.min(hsStart - half - 18, rx));
+      o += `<text class="n-name" x="${lx}" y="${yN1}" text-anchor="middle">${esc(L.nodes.relay)}</text><text class="n-stat" x="${lx}" y="${yN2}" text-anchor="middle">${esc(stat('relay'))}</text>`;
+    }
+    let pxPerMs = null, scaleW = 0;
+    g.forEach((q, i) => {
+      const w = Math.max(1, q.w - 2), rx = q.x + 1;
+      if (q.s.ms == null) o += `<rect x="${rx + .5}" y="${yB + .5}" width="${Math.max(1, w - 1)}" height="${hB - 1}" fill="${C.wash}" stroke="${C.line}" stroke-dasharray="5 4"/>`;
+      else {
+        o += `<rect x="${rx}" y="${yB}" width="${w}" height="${hB}" fill="${q.def.kind === 'line' ? C.brand : C.line}"/>`;
+        if (q.s.ms > 0 && q.w > 6 && q.w > scaleW) { scaleW = q.w; pxPerMs = q.w / q.s.ms; }
+      }
+      const cx = (i + .5) * W / n, sx = q.x + q.w / 2;
+      o += `<path class="thin" d="M${sx} ${yC0}V${yC0 + 6}L${cx} ${yL1 - 20}V${yL1 - 15}"/>`;
+      o += `<text class="s-name" x="${cx}" y="${yL1}" text-anchor="middle">${esc(q.def[this.lang] || q.s.id)}</text>`;
+      if (q.s.ms == null) o += `<text class="s-wait" x="${cx}" y="${yL2 - 6}" text-anchor="middle">${esc(q.s.over_ms != null ? L.omitted : L.awaiting)}</text>`;
+      else o += `<text class="s-val" x="${cx}" y="${yL2}" text-anchor="middle">${q.s.est ? '≈ ' : ''}${fmtMs(q.s.ms)} ms</text>`;
+    });
+    const cmd = (f && f.cmd) || {};
+    o += `<path class="rule" d="M${W} ${yCmd + .5}H7"/><path d="M0 ${yCmd + .5}l9 -4v8z" fill="${C.muted}"/>`;
+    o += `<text class="c-lab" x="0" y="${yCmd + 24}">${esc(L.cmd)}</text>`;
+    const items = [L.cmdStat.rate(cmd.rate, cmd.rate_src), L.cmdStat.rtt(cmd.rtt), L.cmdStat.loss(cmd.loss)];
+    if (cmd.dropped != null && cmd.dropped >= 0.5) items.push(L.cmdStat.dropped(cmd.dropped));
+    const x0 = Math.max(W * 0.24, tw(L.cmd, '12.5px ' + SANS) + 40), colW = (W - x0) / items.length;
+    items.forEach(([v, k], i) => {
+      o += `<text x="${x0 + i * colW}" y="${yCmd + 24}">${v ? `<tspan class="c-val">${esc(v)}</tspan> ` : ''}<tspan class="c-lab">${esc(k)}</tspan></text>`;
+    });
+    let lx = 0;
+    const lg = (fill, stroke, label) => {
+      o += `<rect x="${lx + .5}" y="${yLg - 9.5}" width="14" height="10" fill="${fill}"${stroke ? ` stroke="${C.line}" stroke-dasharray="3 2"` : ''}/>`;
+      o += `<text class="lg" x="${lx + 20}" y="${yLg}">${esc(label)}</text>`;
+      lx += 20 + tw(label, '12px ' + SANS) + 22;
+    };
+    lg(C.line, false, L.lgMachine); lg(C.brand, false, L.lgLine); lg(C.wash, true, L.lgWait);
+    const tot = f ? f.total.ms : null, sumKnown = segs.reduce((a, s) => a + (s.ms || 0), 0), notes = [];
+    if (segs.some(s => s.est)) notes.push(L.noteEst);
+    if (segs.some(s => s.med)) notes.push(L.noteMed);
+    const av = segs.find(s => s.avg);
+    if (av) notes.push(L.noteAvg(av.win_s));
+    const ov = segs.find(s => s.over_ms != null);
+    if (ov) notes.push(L.over(ov.over_ms));
+    else if (tot != null && tot - sumKnown >= 1) notes.push(L.rest(tot - sumKnown, tot));
+    const lines = [''];
+    for (const t of notes) {
+      const cur = lines[lines.length - 1], next = cur ? cur + ' · ' + t : t;
+      if (cur && tw(next, '12px ' + SANS) > W) lines.push(t); else lines[lines.length - 1] = next;
+    }
+    lines.slice(0, 3).forEach((t, i) => { if (t) o += `<text class="lg" x="0" y="${yNt + i * 16}">${esc(t)}</text>`; });
+    if (pxPerMs) {
+      const nice = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+      let m = nice[0];
+      for (const v of nice) if (v * pxPerMs <= 160) m = v;
+      const len = m * pxPerMs;
+      o += `<path class="rule" d="M${W - len} ${yLg - 8}v6H${W - .5}v-6"/><text class="lg" x="${W - len - 8}" y="${yLg}" text-anchor="end">${fmtInt(m)} ms</text>`;
+    }
+    const extra = Math.max(0, Math.min(3, lines.length) - 2) * 16;
+    if (extra !== (this._extra || 0)) { this._extra = extra; return this.draw(); }
+    this.svg.setAttribute('height', H);
+    this.svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    this.svg.innerHTML = o;
+  }
+}
+
+class Chart {
+  constructor(def, card) {
+    this.def = def; this.card = card; this.cv = $('canvas', card); this.valEl = $('.c-val', card);
+    this.buf = document.createElement('canvas'); this.dirty = true; this.log = false; this.w = 0; this.h = 0;
+    const seek = e => { const r = this.cv.getBoundingClientRect(), [a, b] = viewRange(); seekTo(a + (b - a) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))); };
+    this.cv.addEventListener('pointerdown', e => { try { this.cv.setPointerCapture(e.pointerId); } catch (_) {} seek(e); });
+    this.cv.addEventListener('pointermove', e => { if (e.buttons & 1) seek(e); });
+    const lb = $('.c-log', card);
+    lb.addEventListener('click', () => { this.log = !this.log; lb.setAttribute('aria-pressed', this.log); this.dirty = true; this.draw(); });
+  }
+  ids() { return [this.def.id].concat(this.def.overlay || []); }
+  size() {
+    const dpr = window.devicePixelRatio || 1, w = this.cv.clientWidth, h = this.cv.clientHeight;
+    if (!w) return false;
+    if (w !== this.w || h !== this.h) {
+      this.w = w; this.h = h;
+      for (const c of [this.cv, this.buf]) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+      this.dirty = true;
+    }
+    return true;
+  }
+  yOf(v) {
+    const {lo, hi} = this.y, top = 14, bot = this.h - 15;
+    let k;
+    if (this.log) k = (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / ((Math.log10(hi) - Math.log10(lo)) || 1);
+    else k = (v - lo) / ((hi - lo) || 1);
+    return bot - k * (bot - top);
+  }
+  drawStatic() {
+    const dpr = window.devicePixelRatio || 1, c = this.buf.getContext('2d'), w = this.w, h = this.h, [a, b] = viewRange();
+    const xOf = t => (t - a) / (b - a) * w;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    for (const [r, col] of [[S.A, C.pale], [S.B, 'rgba(95,109,104,.13)']]) {
+      if (r) { c.fillStyle = col; c.fillRect(xOf(r[0]), 0, Math.max(1, xOf(r[1]) - xOf(r[0])), h); }
+    }
+    c.strokeStyle = C.line; c.lineWidth = 1; c.setLineDash([3, 3]);
+    for (const m of S.marks) { const x = Math.round(xOf(m.t)) + .5; if (x >= 0 && x <= w) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke(); } }
+    c.setLineDash([]);
+    const vis = this.ids().map(id => {
+      const s = S.series[id];
+      if (!s) return {id, i0: 0, i1: -1, s: {t: [], v: []}};
+      return {id, s, i0: Math.max(0, bsearch(s.t, a)), i1: Math.min(s.t.length - 1, bsearch(s.t, b) + 1)};
+    });
+    let lo = Infinity, hi = -Infinity, minPos = Infinity, cnt = 0;
+    for (const q of vis) for (let i = q.i0; i <= q.i1; i++) {
+      const v = q.s.v[i]; cnt++;
+      if (v < lo) lo = v; if (v > hi) hi = v; if (v > 0 && v < minPos) minPos = v;
+    }
+    c.font = '10.5px ' + SANS; c.fillStyle = C.muted; c.textBaseline = 'alphabetic';
+    if (!cnt) { this.y = null; c.textAlign = 'center'; c.fillText('No data in this time range', w / 2, h / 2); c.textAlign = 'left'; c.fillText(zhClock(a), 2, h - 3); c.textAlign = 'right'; c.fillText(zhClock(b), w - 2, h - 3); return; }
+    if (this.log) { lo = isFinite(minPos) ? minPos : 0.1; hi = Math.max(hi, lo * 10); }
+    else { if (this.def.zero !== false && lo > 0) lo = 0; if (hi === lo) hi = lo + 1; }
+    this.y = {lo, hi};
+    c.strokeStyle = C.line; c.beginPath(); c.moveTo(0, h - 14.5); c.lineTo(w, h - 14.5); c.stroke();
+    const line = (q, color, width) => {
+      const d = S.defById[q.id], gap = d.hold * 1.5, s = q.s;
+      c.strokeStyle = color; c.fillStyle = color; c.lineWidth = width;
+      let open = false, px = -99;
+      c.beginPath();
+      for (let i = q.i0; i <= q.i1; i++) {
+        const x = xOf(s.t[i]), y = this.yOf(s.v[i]);
+        const linked = i > q.i0 && s.t[i] - s.t[i - 1] <= gap;
+        if (linked) c.lineTo(x, y); else { c.moveTo(x, y); }
+        open = true;
+        const next = i < q.i1 && s.t[i + 1] - s.t[i] <= gap;
+        if (!linked && !next) { c.stroke(); c.beginPath(); c.arc(x, y, 1.6, 0, 6.3); c.fill(); c.beginPath(); open = false; }
+        px = x;
+      }
+      if (open) c.stroke();
+    };
+    const dots = (q, color) => {
+      c.strokeStyle = color; c.lineWidth = 1.2; c.fillStyle = C.bg;
+      for (let i = q.i0; i <= q.i1; i++) { c.beginPath(); c.arc(xOf(q.s.t[i]), this.yOf(q.s.v[i]), 2.6, 0, 6.3); c.fill(); c.stroke(); }
+    };
+    vis.slice(1).forEach(q => { if (S.defById[q.id].dots) dots(q, C.muted); else line(q, C.muted, 1); });
+    if (this.def.dots) dots(vis[0], C.brand); else line(vis[0], C.brand, 1.6);
+    c.fillStyle = C.muted; c.textAlign = 'left';
+    c.fillText(fmtNum(hi) + (this.log ? ' (log)' : ''), 2, 10);
+    c.textBaseline = 'bottom'; c.fillText(fmtNum(lo), 2, h - 16); c.textBaseline = 'alphabetic';
+    c.fillText(zhClock(a), 2, h - 3); c.textAlign = 'right'; c.fillText(zhClock(b), w - 2, h - 3); c.textAlign = 'left';
+  }
+  draw() {
+    if (!this.size()) return;
+    if (this.dirty) { this.drawStatic(); this.dirty = false; }
+    const dpr = window.devicePixelRatio || 1, c = this.cv.getContext('2d'), w = this.w, h = this.h, [a, b] = viewRange();
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.cv.width, this.cv.height); c.drawImage(this.buf, 0, 0);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const v = valueAt(this.def.id, S.T);
+    if (S.T >= a && S.T <= b) {
+      const x = Math.round((S.T - a) / (b - a) * w) + .5;
+      c.strokeStyle = C.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h); c.stroke();
+      if (v != null && this.y) { c.fillStyle = C.ink; c.beginPath(); c.arc(x, this.yOf(v), 2.6, 0, 6.3); c.fill(); }
+    }
+    let txt = v == null ? '<b>—</b>' : `<b>${fmtNum(v)}</b> ${esc(this.def.unit)}`;
+    if (this.def.id === 'lat_p50') { const p = valueAt('lat_p95', S.T); if (p != null) txt += ` · p95 ${fmtNum(p)}`; }
+    if (txt !== this._txt) { this._txt = txt; this.valEl.innerHTML = txt; }
+  }
+}
+
+function markSegs() {
+  const m = S.marks.slice().sort((x, y) => x.t - y.t), out = [];
+  m.forEach((k, i) => {
+    const end = i + 1 < m.length ? m[i + 1].t : S.t1;
+    if (end - k.t > 1) out.push({label: k.label, a: k.t, b: end});
+  });
+  return out;
+}
+function viewRange() {
+  if (S.win === 'A' && S.A) return S.A;
+  if (S.win === 'B' && S.B) return S.B;
+  if (S.win === 'near') return [S.T - 120, S.T + 120];
+  if (S.win === 'mark') { const g = markSegs().filter(k => S.T >= k.a && S.T <= k.b).pop(); if (g) return [g.a, g.b]; }
+  return [S.t0, Math.max(S.t1, S.t0 + 1)];
+}
+
+let dirtyAll = true, lastTuneDraw = 0;
+function setT(T) { S.T = Math.min(Math.max(T, S.t0), S.follow ? Infinity : S.t1); }
+function seekTo(T) { S.follow = false; S.playing = false; if (S.cut) { S.C = cutC(T); T = cutW(S.C); } setT(T); syncButtons(); }
+function cutPiece(C) { const ps = S.cut.pieces; for (let i = ps.length - 1; i >= 0; i--) if (C >= ps[i].c0) return ps[i]; return ps[0]; }
+function cutW(C) { const k = cutPiece(C); return k.w0 + Math.min(C, k.c1) - k.c0; }
+function cutC(T) {
+  let best = 0, bd = Infinity;
+  for (const k of S.cut.pieces) {
+    const len = k.c1 - k.c0;
+    if (T >= k.w0 && T < k.w0 + len) return k.c0 + (T - k.w0);
+    const d0 = Math.abs(T - k.w0), d1 = Math.abs(T - (k.w0 + len));
+    if (d0 < bd) { bd = d0; best = k.c0; }
+    if (d1 < bd) { bd = d1; best = k.c1 - 0.05; }
+  }
+  return best;
+}
+function seekClip(C) { S.follow = false; S.playing = false; S.C = Math.min(Math.max(C, 0), S.cut.total); setT(cutW(S.C)); syncButtons(); }
+function cutClock(x) { x = Math.max(0, Math.floor(x)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`; }
+function nowT() { return Date.now() / 1000; }
+function togglePlay() {
+  if (S.follow) { S.follow = false; S.playing = false; }
+  else if (S.cut) { if (!S.playing && S.C >= S.cut.total - 0.05) { S.C = 0; S.T = cutW(0); } S.playing = !S.playing; }
+  else { if (!S.playing && S.T >= S.t1 - 0.01) S.T = S.t0; S.playing = !S.playing; }
+  syncButtons();
+}
+function goLive() { S.follow = true; S.playing = false; syncButtons(); }
+function syncButtons() {
+  const live = S.meta && S.meta.mode === 'live', run = S.playing || S.follow;
+  $('#stPlay').textContent = run ? 'Pause' : 'Play';
+  $('#tuPlay').textContent = run ? 'Pause' : 'Play';
+  $('#stLive').classList.toggle('hide', !live || S.follow);
+  $('#tuLive').classList.toggle('hide', !live || S.follow);
+}
+let lastTs = 0;
+function loop(ts) {
+  const dt = Math.min(1, (ts - lastTs) / 1000 || 0); lastTs = ts;
+  if (S.meta) {
+    if (S.meta.mode === 'live') S.t1 = Math.max(S.t1, nowT());
+    if (S.follow) S.T = nowT();
+    else if (S.playing && S.cut) {
+      const v = $('#vid'), own = V.name === '#cut' && !v.paused && !v.seeking && v.readyState >= 2 && S.speed <= 16;
+      let C = own ? v.currentTime : S.C + dt * S.speed;
+      if (C >= S.cut.total - 0.02) { C = S.cut.total; S.playing = false; syncButtons(); }
+      S.C = C; S.T = cutW(C);
+    }
+    else if (S.playing) {
+      let T = S.T + dt * S.speed;
+      if (S.skip) {
+        const i = bsearch(S.frameT, T), prev = i >= 0 ? S.frameT[i] : -Infinity, next = S.frameT[i + 1];
+        if (next !== undefined && next - T > 10 && T - prev > 3) T = next - 1;
+      }
+      if (T >= S.t1) { T = S.t1; S.playing = false; syncButtons(); }
+      S.T = T;
+    }
+    render(ts);
+    syncVideo(ts);
+  }
+  requestAnimationFrame(loop);
+}
+
+let stChain, tuChain, charts = [], lastT = null, lastView = null;
+function render(ts) {
+  const changed = S.T !== lastT || dirtyAll || S.view !== lastView;
+  if (!changed) return;
+  if (S.view === 'stage') { renderStage(); lastT = S.T; lastView = S.view; dirtyAll = false; }
+  else if (dirtyAll || S.view !== lastView || ts - lastTuneDraw > 80) {
+    if (dirtyAll) charts.forEach(c => c.dirty = true);
+    renderTune(); lastTuneDraw = ts; lastT = S.T; lastView = S.view; dirtyAll = false;
+  }
+}
+function setTotal(numEl, f, L, wide) {
+  const t = f ? f.total : {ms: null, why: 'nofeed'};
+  if (t.ms != null) { numEl.textContent = fmtMs(t.ms); numEl.classList.remove('wait'); }
+  else { numEl.textContent = L.awaiting; numEl.classList.add('wait'); }
+  return t;
+}
+function renderStage() {
+  const f = frameAt(S.T), t = setTotal($('#stNum'), f, EN);
+  $('#stUnit').classList.toggle('hide', t.ms == null);
+  $('#stSub').textContent = t.ms != null ? `median of the last 2 s · 95th percentile ${fmtMs(t.p95)} ms` : (EN.why[t.why] || '');
+  stChain.set(f);
+  $('#stTime').textContent = (S.cut ? `${cutClock(S.C)} / ${cutClock(S.cut.total)} · ` : '') + `${tfmt(S.T, SF, dm)} ${tfmt(S.T, SF, hms)} San Francisco · ${tfmt(S.T, BJ, dm)} ${tfmt(S.T, BJ, hms)} Beijing`;
+  if (document.activeElement !== $('#stSeek')) $('#stSeek').value = S.cut ? Math.round(1000 * S.C / S.cut.total) : Math.round(1000 * (S.T - S.t0) / ((S.t1 - S.t0) || 1));
+  const live = S.meta.mode === 'live';
+  let st = live ? 'Live' : `Replay · recorded ${tfmt(S.meta.t0, SF, dmy)}`;
+  if (live && S.status.headset && S.status.headset !== 'online') st += ' · headset offline';
+  if (live && !S.follow) st += ' · paused';
+  if (S.lost) st += ' · collector stopped';
+  $('#stStatus').textContent = st;
+}
+function renderTune() {
+  const f = frameAt(S.T), t = setTotal($('#tuNum'), f, ZH);
+  $('#tuSub').textContent = t.ms != null ? `ms, camera to eye (median of the last 2 s, ${t.n} frames) · p95 ${fmtMs(t.p95)} ms` : `camera to eye: ${ZH.why[t.why] || ''}`;
+  tuChain.set(f);
+  $('#tuTime').textContent = `Beijing ${zhDate(S.T, BJ)} ${zhClock(S.T)} · San Francisco ${zhDate(S.T, SF)} ${tfmt(S.T, SF, hms)}`;
+  drawTimeline();
+  const rk = viewRange().join();
+  if (rk !== S._rangeKey) { S._rangeKey = rk; charts.forEach(c => c.dirty = true); }
+  for (const c of charts) {
+    const r = c.card.getBoundingClientRect();
+    if (r.bottom < -50 || r.top > innerHeight + 50) { if (c.dirty) c._skipped = true; continue; }
+    c.draw();
+  }
+  const live = S.meta.mode === 'live';
+  const hs = {online: 'online', offline: 'offline', no_adb: 'adb not found', off: 'off'}[S.status.headset] || '—';
+  const pr = {ok: 'ok', no_reply: 'no reply', failed: 'ping could not run'}[S.status.probe] || 'off';
+  const rl = {ok: 'ok', failed: 'cannot connect', empty: 'connected but no counters', off: 'off'}[S.status.relay] || '—';
+  const og = {ok: 'ok', connecting: 'connecting', no_stat: 'in the room but no stats received', failed: 'bridge exited, will retry', no_cred: 'credential file unreadable', no_bridge: 'bridge program not found', off: 'off'}[S.status.orin] || '—';
+  $('#tuInfo').textContent = live
+    ? `Live · session ${S.meta.name} · headset: ${hs} · relay counters: ${rl} · Beijing stats: ${og} · ping ${S.meta.relay_host || ''}: ${pr}${S.lost ? ' · collector stopped' : ''}`
+    : `Replay · ${S.meta.name} · ${fmtInt(S.meta.records)} records · Beijing time ${zhDate(S.t0, BJ)} ${zhClock(S.t0)} – ${zhClock(S.t1)} (San Francisco ${zhDate(S.t0, SF)} ${tfmt(S.t0, SF, hm)} – ${tfmt(S.t1, SF, hm)})${S.meta.anchor ? ' · time anchor: ' + S.meta.anchor : ''}`;
+}
+
+function drawTimeline() {
+  const cv = $('#tl'), dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const a = S.t0, b = Math.max(S.t1, S.t0 + 1), xOf = t => (t - a) / (b - a) * w;
+  const yS = 44, hS = 12;
+  for (const [r, col, name] of [[S.A, C.pale, 'A'], [S.B, 'rgba(95,109,104,.13)', 'B']]) {
+    if (!r) continue;
+    c.fillStyle = col; c.fillRect(xOf(r[0]), 30, Math.max(2, xOf(r[1]) - xOf(r[0])), h - 30 - 16);
+    c.fillStyle = C.ink; c.font = '600 11px ' + SANS; c.textAlign = 'left'; c.fillText(name, xOf(r[0]) + 3, 41);
+  }
+  c.fillStyle = C.wash; c.fillRect(0, yS, w, hS);
+  let lastPx = -1, lastKnown = -1;
+  for (const f of S.frames) {
+    const px = Math.floor(xOf(f.t));
+    if (f.total.ms != null) { if (px !== lastKnown) { c.fillStyle = C.brand; c.fillRect(px, yS, 1.5, hS); lastKnown = px; lastPx = px; } }
+    else if (px !== lastPx) { c.fillStyle = C.mid; c.fillRect(px, yS, 1, hS); lastPx = px; }
+  }
+  c.fillStyle = C.muted;
+  for (const g of videoSegs()) {
+    const x0 = xOf(g.start + S.mediaOff), x1 = g.dur != null ? xOf(g.start + S.mediaOff + g.dur) : x0 + 2;
+    if (x1 >= 0 && x0 <= w) c.fillRect(Math.max(0, x0), yS - 5, Math.max(2, Math.min(w, x1) - Math.max(0, x0)), 3);
+  }
+  const span = b - a, steps = [10, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200];
+  let step = steps[steps.length - 1];
+  for (const s of steps) if (span / s <= 12) { step = s; break; }
+  c.font = '10.5px ' + SANS; c.fillStyle = C.muted; c.textAlign = 'center'; c.strokeStyle = C.line; c.lineWidth = 1; c.setLineDash([]);
+  const off = 8 * 3600;
+  for (let t = Math.ceil((a + off) / step) * step - off; t <= b; t += step) {
+    const x = Math.round(xOf(t)) + .5;
+    c.beginPath(); c.moveTo(x, yS + hS); c.lineTo(x, yS + hS + 4); c.stroke();
+    if (x > 20 && x < w - 20) c.fillText(tfmt(t, BJ, step < 60 ? hms : hm), x, h - 3);
+  }
+  c.textAlign = 'left'; c.font = '11px ' + SANS;
+  const ms = S.marks.slice().sort((p, q) => p.t - q.t);
+  ms.forEach((m, i) => {
+    const x = Math.round(xOf(m.t)) + .5;
+    c.strokeStyle = C.muted; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(x, 4); c.lineTo(x, yS + hS); c.stroke(); c.setLineDash([]);
+    const room = (i + 2 < ms.length ? xOf(ms[i + 2].t) : w) - x - 8;
+    let label = m.label;
+    while (label.length > 2 && c.measureText(label).width > Math.max(40, room)) label = label.slice(0, -2) + '…';
+    const lw = c.measureText(label).width, right = x + 4 + lw > w;
+    c.fillStyle = C.ink; c.textAlign = right ? 'right' : 'left';
+    c.fillText(label, right ? x - 4 : x + 4, i % 2 ? 26 : 13);
+  });
+  const [va, vb] = viewRange();
+  if (S.win !== 'all') { c.strokeStyle = C.brand; c.lineWidth = 2; c.beginPath(); c.moveTo(xOf(va), yS + hS + 1); c.lineTo(xOf(vb), yS + hS + 1); c.stroke(); }
+  const x = Math.round(xOf(Math.min(S.T, b))) + .5;
+  c.strokeStyle = C.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, yS + hS + 4); c.stroke();
+  c.fillStyle = C.ink; c.beginPath(); c.moveTo(x - 4.5, 0); c.lineTo(x + 4.5, 0); c.lineTo(x, 6); c.closePath(); c.fill();
+}
+function bindTimeline() {
+  const cv = $('#tl'); let mode = null, anchor = 0;
+  const tAt = e => { const r = cv.getBoundingClientRect(); return S.t0 + (Math.max(S.t1, S.t0 + 1) - S.t0) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+  cv.addEventListener('pointerdown', e => {
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {} anchor = tAt(e);
+    mode = e.shiftKey ? 'A' : e.altKey ? 'B' : 'seek';
+    if (mode === 'seek') seekTo(anchor);
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!mode) return;
+    const t = tAt(e);
+    if (mode === 'seek') seekTo(t);
+    else if (Math.abs(t - anchor) > 0.5) setRange(mode, [Math.min(anchor, t), Math.max(anchor, t)], true);
+  });
+  const end = () => { mode = null; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+}
+
+function setRange(which, r, custom) {
+  S[which] = r;
+  if (custom) $('#sel' + which).value = 'custom';
+  $('#rng' + which).textContent = zhRange(r);
+  renderCompare(); dirtyAll = true;
+}
+function fillPickers() {
+  const segs = markSegs();
+  for (const w of ['A', 'B']) {
+    const sel = $('#sel' + w), cur = sel.value;
+    sel.innerHTML = '<option value="">None</option>' + segs.map((g, i) => `<option value="m${i}">${esc(g.label)} (from ${zhClock(g.a)}, ${Math.round(g.b - g.a)} s)</option>`).join('') + '<option value="custom">Custom (use the playhead or drag on the timeline)</option>';
+    if ($$('option', sel).some(o => o.value === cur)) sel.value = cur;
+  }
+}
+function pickChanged(w) {
+  const v = $('#sel' + w).value, segs = markSegs(), skip = Math.max(0, +$('#skipS').value || 0);
+  if (v === '') setRange(w, null);
+  else if (v[0] === 'm') { const g = segs[+v.slice(1)]; if (g) setRange(w, [Math.min(g.a + skip, g.b - 1), g.b]); }
+  else if (!S[w]) setRange(w, [S.T, Math.min(S.T + 30, S.t1)], true);
+}
+function statsIn(id, r) {
+  const s = S.series[id];
+  if (!s || !r) return null;
+  const i0 = bsearch(s.t, r[0] - 1e-9) + 1, i1 = bsearch(s.t, r[1]);
+  if (i1 < i0) return null;
+  const v = s.v.slice(i0, i1 + 1), n = v.length, first = v[0], last = v[n - 1];
+  v.sort((p, q) => p - q);
+  return {n, med: n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2, p95: v[Math.min(n - 1, Math.floor(n * 0.95))], delta: last - first};
+}
+function renderCompare() {
+  const tb = $('#cmp');
+  if (!S.A && !S.B) { tb.innerHTML = '<tr><td>Once spans A and B are chosen, this lists each parameter\'s median, p95 and difference across the two. Cumulative counters show the increase within the span.</td></tr>'; return; }
+  let o = '<tr><th>Parameter</th><th>A median</th><th>A p95</th><th>A points</th><th>B median</th><th>B p95</th><th>B points</th><th>B − A</th></tr>';
+  const cell = v => v == null ? '—' : fmtNum(v);
+  for (const [sec, title] of S.secs) {
+    let rows = '';
+    for (const d of S.defs.filter(k => k.sec === sec)) {
+      const a = statsIn(d.id, S.A), b = statsIn(d.id, S.B);
+      if (!a && !b) continue;
+      const cnt = d.type === 'counter';
+      const va = a ? (cnt ? a.delta : a.med) : null, vb = b ? (cnt ? b.delta : b.med) : null;
+      const diff = va != null && vb != null ? (vb - va > 0 ? '+' : '') + fmtNum(vb - va) : '—';
+      rows += `<tr><td>${esc(d.zh)}${d.unit ? ` (${esc(d.unit)})` : ''}${cnt ? ', increase within the span' : ''}</td><td>${cell(va)}</td><td>${cnt || !a ? '—' : cell(a.p95)}</td><td>${a ? a.n : 0}</td><td>${cell(vb)}</td><td>${cnt || !b ? '—' : cell(b.p95)}</td><td>${b ? b.n : 0}</td><td>${diff}</td></tr>`;
+    }
+    if (rows) o += `<tr><td class="sec" colspan="8">${esc(title)}</td></tr>` + rows;
+  }
+  tb.innerHTML = o;
+}
+
+function buildSections() {
+  const root = $('#secs'); let o = '';
+  for (const [sec, title] of S.secs) {
+    const defs = S.defs.filter(d => d.sec === sec);
+    if (!defs.length) continue;
+    const have = defs.filter(d => d.chart !== false && S.series[d.id] && S.series[d.id].t.length);
+    const none = defs.filter(d => !(S.series[d.id] && S.series[d.id].t.length) && d.chart !== false);
+    if (sec === 'other' && !have.length) continue;
+    o += `<h2>${esc(title)}</h2><div class="grid">`;
+    for (const d of have) o += `<div class="card" data-id="${esc(d.id)}"><div class="c-top"><span class="c-name">${esc(d.zh)}</span><span class="c-val"></span></div><canvas></canvas><div class="c-src"><code>${esc(d.src)}</code><button class="c-log" aria-pressed="false" title="Toggle log scale">log</button></div></div>`;
+    o += '</div>';
+    if (none.length) o += `<p class="nodata">Not available in this section (awaiting data): ${none.map(d => `<span>${esc(d.zh)} <code>${esc(d.src)}</code></span>`).join('')}</p>`;
+  }
+  root.innerHTML = o;
+  charts = $$('.card', root).map(card => new Chart(S.defById[card.dataset.id], card));
+  S._built = new Set(charts.map(c => c.def.id));
+}
+function renderNotes() {
+  const el = $('#tuNotes'), keys = Object.keys(S.notes);
+  el.classList.toggle('hide', !keys.length);
+  el.innerHTML = '<ul>' + keys.map(k => `<li>${esc(S.notes[k])}</li>`).join('') + '</ul>';
+}
+function renderEvents() {
+  const ev = S.events.slice().sort((p, q) => p.t - q.t), rows = [];
+  for (const e of ev) {
+    const last = rows[rows.length - 1];
+    if (last && last.text === e.text) { last.n++; last.t1 = e.t; } else rows.push({t: e.t, t1: e.t, text: e.text, n: 1});
+  }
+  $('#events').innerHTML = rows.length ? rows.map(r => `<tr data-t="${r.t}"><td>${zhClock(r.t)}${r.n > 1 ? ' – ' + zhClock(r.t1) : ''}</td><td>${esc(r.text)}${r.n > 1 ? `  ×${r.n}` : ''}</td></tr>`).join('') : '<tr><td>No events</td></tr>';
+}
+
+const V = {name: null, lastSeek: 0, key: ''};
+function videoSegs() {
+  const a = S.media.segs.slice();
+  if (S.localVid && S.localVid.start != null) a.push(S.localVid);
+  return a.sort((p, q) => p.start - q.start);
+}
+function segAt(T) {
+  const segs = videoSegs(), off = S.mediaOff;
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const g = segs[i], a = g.start + off;
+    if (T < a) continue;
+    const end = g.dur != null ? a + g.dur : (i + 1 < segs.length ? segs[i + 1].start + off : Infinity);
+    return T < end ? g : null;
+  }
+  return null;
+}
+function dropLocalVid() {
+  if (!S.localVid) return;
+  const vid = $('#vid');
+  if (V.name === S.localVid.name) { vid.pause(); vid.removeAttribute('src'); vid.load(); }
+  URL.revokeObjectURL(S.localVid.url); S.localVid = null; $('#vidFile').value = ''; dirtyAll = true;
+}
+async function loadMedia() {
+  try {
+    const m = await (await fetch('api/media')).json();
+    for (const g of m.segs) g.url = 'media/' + encodeURIComponent(g.name);
+    const first = S.media.dir === null && !S.media.segs.length;
+    const key = JSON.stringify(m.segs.map(g => [g.name, g.start, g.dur])) + JSON.stringify(m.loose.map(g => g.name));
+    if (first) S.mediaOff = m.offset || 0;
+    if (key !== S._mediaKey) { S._mediaKey = key; S.media = m; dirtyAll = true; vidUi(); }
+  } catch (_) {}
+}
+function sfSpan(a, b) { return `${tfmt(a, SF, hms)} to ${tfmt(b, SF, hms)}`; }
+function vidUi(g) {
+  if (S.cut) return;
+  const cap = $('#vidCap'), segs = videoSegs(), lv = S.localVid;
+  g = g === undefined ? (V.name ? segs.find(k => k.name === V.name) : null) : g;
+  const live = S.meta && S.meta.mode === 'live';
+  let o = '';
+  if (lv && lv.start == null) {
+    o = `<span>Operator view · local file ${esc(lv.name)}, not placed on the timeline</span><label>Starts at <input id="vidAt" type="datetime-local" step="1"></label><button id="vidRm">Remove</button>`;
+  } else if (g) {
+    o = g.local ? `<span>Operator view · local file ${esc(g.name)}, placed on the timeline from ${tfmt(g.start + S.mediaOff, SF, hms)} San Francisco time</span><button id="vidRm">Remove</button>`
+                : `<span>Operator view · headset screen recording, placed on the timeline by its start time (within about 2 s)</span>`;
+  } else if (segs.length) {
+    const last = segs[segs.length - 1], end = last.start + (last.dur || 0) + S.mediaOff;
+    o = `<span>Headset screen recordings cover ${sfSpan(segs[0].start + S.mediaOff, end)} San Francisco time${live && S.follow ? ', shown on replay' : ''}</span>${S.follow ? '' : '<button id="vidGo">Go to the first one</button>'}${lv ? '<button id="vidRm">Remove local file</button>' : ''}`;
+  }
+  const key = o + '|' + (g ? 1 : 0);
+  if (key !== V.key) { V.key = key; cap.innerHTML = o; }
+  $('#vidPhS').textContent = segs.length && !(live && S.follow) ? 'no recording at this moment' : 'awaiting feed';
+  const el = $('#tuMedia');
+  if (el && document.activeElement !== $('#vidOff')) {
+    let z = '';
+    if (segs.length) {
+      const tot = segs.reduce((a, k) => a + (k.dur || 0), 0), last = segs[segs.length - 1];
+      z += `<span>Operator video: ${segs.length} ${segs.length === 1 ? 'segment' : 'segments'}, ${zhDur(tot)} in total, Beijing time ${zhClock(segs[0].start + S.mediaOff)} – ${zhClock(last.start + (last.dur || 0) + S.mediaOff)}</span>`;
+      z += `<label>Shift all by <input id="vidOff" type="number" step="0.5" value="${S.mediaOff}"> s (positive = video later; times in file names can be off by a second or two)</label>`;
+    } else z += `<span>Operator video: ${S.media.dir ? 'no file in the video folder ' + esc(S.media.dir) + '/ can be placed on the timeline yet' : 'no video folder'}</span>`;
+    if (S.media.loose.length) z += `<span>Files not on the timeline: ${S.media.loose.map(k => esc(k.name) + (k.ready ? ' (no time in the file name; give one with --media-start)' : ' (still recording, or not a complete mp4)')).join(', ')}</span>`;
+    if (z !== V.zkey) { V.zkey = z; el.innerHTML = z; }
+  }
+}
+const CW = {tiles: [], key: '', capKey: ''};
+function cutBuild() {
+  const wall = $('#cutWall'); wall.innerHTML = ''; CW.tiles = [];
+  for (const col of S.cut.cols) {
+    const c = document.createElement('div'); c.className = 'cutcol';
+    for (const id of col) {
+      const t = S.cut.tiles[id]; if (!t) continue;
+      const el = document.createElement('div'); el.className = 'cuttile'; el.dataset.id = id;
+      el.innerHTML = `<canvas></canvas><div class="lbl">${esc(t.label || id)}</div><div class="hole hide"></div>`;
+      c.appendChild(el);
+      CW.tiles.push({id, t, el, col: c, cv: el.querySelector('canvas'), hole: el.querySelector('.hole')});
+    }
+    wall.appendChild(c);
+  }
+  wall.addEventListener('click', e => { const el = e.target.closest('.cuttile'); if (!el) return; S.cutSolo = S.cutSolo ? null : el.dataset.id; CW.key = ''; });
+}
+function cutLayout() {
+  const wall = $('#cutWall'), box = wall.parentElement, g = 8, dpr = Math.min(2, devicePixelRatio || 1);
+  const all = [...wall.children].map(c => CW.tiles.filter(k => k.col === c)).filter(c => c.length);
+  const rAll = all.reduce((a, c) => a + c[0].t.w / c.reduce((x, k) => x + k.t.h, 0), 0) || 1;
+  const boxH = Math.round(Math.max(200, Math.min(innerHeight * 0.52, (box.clientWidth - 16 - g * (all.length - 1)) / rAll + 16)));
+  if (box.style.height !== boxH + 'px') box.style.height = boxH + 'px';
+  const W = wall.clientWidth - 16, H = boxH - 16;
+  const key = [W, H, S.cutSolo, dpr].join('|');
+  if (key === CW.key || W <= 0 || H <= 0) return;
+  CW.key = key;
+  wall.classList.toggle('solo', !!S.cutSolo);
+  const cols = [...wall.children].map(c => CW.tiles.filter(k => k.col === c && (!S.cutSolo || k.id === S.cutSolo)));
+  [...wall.children].forEach((c, i) => c.classList.toggle('hide', !cols[i].length));
+  for (const k of CW.tiles) k.el.classList.toggle('hide', !!S.cutSolo && k.id !== S.cutSolo);
+  const live = cols.filter(c => c.length);
+  const r = live.map(c => c[0].t.w / c.reduce((a, k) => a + k.t.h, 0)), n = live.map(c => c.length);
+  const h = Math.max(40, Math.min(H, (W - g * (live.length - 1) + g * r.reduce((a, x, i) => a + x * (n[i] - 1), 0)) / r.reduce((a, x) => a + x, 0)));
+  live.forEach((c, i) => {
+    const w = (h - g * (n[i] - 1)) * r[i];
+    for (const k of c) {
+      const th = w * k.t.h / k.t.w;
+      k.el.style.width = w + 'px'; k.el.style.height = th + 'px';
+      k.cv.width = Math.min(k.t.w, Math.round(w * dpr)); k.cv.height = Math.min(k.t.h, Math.round(th * dpr));
+    }
+  });
+}
+function cutCaption() {
+  const k = cutPiece(S.C), has = Object.values(S.cut.tiles).some(t => t.audio);
+  const o = `<span>${esc(k.label || 'Edited recording')} · the views share every frame of one file, so they stay in step · numbers follow the headset recording's clock, within about 2 s</span>` +
+            (has ? `<button id="cutSnd">${S.cutSound ? 'Turn sound off' : 'Turn sound on'}</button>` : '');
+  if (o !== CW.capKey) { CW.capKey = o; $('#vidCap').innerHTML = o; }
+}
+function syncCut(ts) {
+  const vid = $('#vid');
+  if (V.name !== '#cut') {
+    V.name = '#cut'; V.lastSeek = 0; vid.loop = false; vid.src = S.cut.url;
+    vid.classList.remove('hide'); vid.classList.add('src'); $('#vidPh').classList.add('hide'); $('#cutWall').classList.remove('hide');
+    $('#stage').classList.add('cut');
+    cutBuild();
+  }
+  vid.muted = !S.cutSound;
+  cutCaption();
+  if (vid.readyState < 1) return;
+  const dur = isFinite(vid.duration) ? vid.duration : Infinity, want = Math.max(0, Math.min(S.C, dur - 0.02));
+  if (S.playing && S.speed <= 16) {
+    if (vid.playbackRate !== S.speed) vid.playbackRate = S.speed;
+    if (vid.paused && !vid.ended) { if (Math.abs(vid.currentTime - want) > 0.05) vid.currentTime = want; vid.play().catch(() => {}); }
+  } else {
+    if (!vid.paused) vid.pause();
+    if (Math.abs(vid.currentTime - want) > 0.02 && !vid.seeking && ts - V.lastSeek > 80) { vid.currentTime = want; V.lastSeek = ts; }
+  }
+  if (S.view !== 'stage') return;
+  cutLayout();
+  for (const k of CW.tiles) {
+    if (k.el.classList.contains('hide')) continue;
+    const hole = (k.t.holes || []).find(x => S.C >= x.c0 && S.C < x.c1);
+    k.hole.classList.toggle('hide', !hole);
+    if (hole) { if (k.hole.textContent !== hole.text) k.hole.textContent = hole.text; continue; }
+    if (vid.readyState >= 2) k.cv.getContext('2d').drawImage(vid, k.t.x, k.t.y, k.t.w, k.t.h, 0, 0, k.cv.width, k.cv.height);
+  }
+}
+function syncVideo(ts) {
+  if (S.cut) return syncCut(ts);
+  const vid = $('#vid'), ph = $('#vidPh'), lv = S.localVid;
+  if (lv && lv.start == null) {
+    if (V.name !== lv.name) { V.name = lv.name; vid.loop = true; vid.src = lv.url; vid.playbackRate = 1; vid.classList.remove('hide'); ph.classList.add('hide'); vid.play().catch(() => {}); vidUi(null); }
+    return;
+  }
+  const g = segAt(S.T);
+  if (!g) {
+    if (V.name !== null) { V.name = null; vid.pause(); vid.removeAttribute('src'); vid.load(); vid.classList.add('hide'); ph.classList.remove('hide'); }
+    vidUi(null);
+    return;
+  }
+  if (V.name !== g.name) {
+    V.name = g.name; V.lastSeek = 0; vid.loop = false; vid.src = g.url; vid.classList.remove('hide'); ph.classList.add('hide');
+  }
+  vidUi(g);
+  if (vid.readyState < 1) return;
+  const dur = isFinite(vid.duration) ? vid.duration : Infinity;
+  const want = Math.max(0, Math.min(S.T - (g.start + S.mediaOff), dur - 0.02));
+  const running = S.playing && !S.follow;
+  if (running && S.speed <= 16) {
+    if (vid.playbackRate !== S.speed) vid.playbackRate = S.speed;
+    if (Math.abs(vid.currentTime - want) > Math.max(0.4, 0.3 * S.speed) && ts - V.lastSeek > 600) { vid.currentTime = want; V.lastSeek = ts; }
+    if (vid.paused && !vid.ended) vid.play().catch(() => {});
+  } else {
+    if (!vid.paused) vid.pause();
+    if (Math.abs(vid.currentTime - want) > 0.04 && !vid.seeking && ts - V.lastSeek > 80) { vid.currentTime = want; V.lastSeek = ts; }
+  }
+}
+
+function indexDefs() { S.defById = {}; for (const d of S.defs) S.defById[d.id] = d; }
+function recomputeRange() {
+  let a = Infinity, b = -Infinity;
+  if (S.frameT.length) { a = Math.min(a, S.frameT[0]); b = Math.max(b, S.frameT[S.frameT.length - 1]); }
+  for (const m of S.marks) { a = Math.min(a, m.t); b = Math.max(b, m.t); }
+  for (const e of S.events) { a = Math.min(a, e.t); b = Math.max(b, e.t); }
+  if (S.meta.mode === 'live') { a = Math.min(a, S.meta.t0); b = Math.max(b, nowT()); }
+  if (!isFinite(a)) { a = S.meta.t0 || nowT(); b = a + 1; }
+  S.t0 = a; S.t1 = Math.max(b, a + 1);
+}
+function applyDelta(d) {
+  if (d.reload) { location.reload(); return; }
+  if (d.status) S.status = d.status;
+  if (d.seq) S.seq = d.seq;
+  let rebuild = false, marks = false;
+  for (const def of d.defs || []) { S.defs.push(def); S.defById[def.id] = def; rebuild = true; }
+  for (const id in d.pts || {}) {
+    const s = S.series[id] || (S.series[id] = {t: [], v: []});
+    for (const [t, v] of d.pts[id]) { s.t.push(t); s.v.push(v); }
+    if (S._built && !S._built.has(id) && S.defById[id] && S.defById[id].chart !== false) rebuild = true;
+  }
+  if (d.frame) { S.frames.push(d.frame); S.frameT.push(d.frame.t); }
+  if (d.marks && d.marks.length) { S.marks.push(...d.marks); marks = true; }
+  if (d.events && d.events.length) { S.events.push(...d.events); renderEvents(); }
+  if (d.notes && Object.keys(d.notes).length) { Object.assign(S.notes, d.notes); renderNotes(); }
+  if (rebuild) buildSections();
+  if (marks) fillPickers();
+  dirtyAll = true;
+}
+function openStream() {
+  const es = new EventSource('api/stream?since=' + S.seq);
+  es.onmessage = e => { S.lost = false; applyDelta(JSON.parse(e.data)); };
+  es.onerror = () => { es.close(); S.lost = true; dirtyAll = true; setTimeout(openStream, 2000); };
+}
+function setView(v) {
+  S.view = v;
+  $('#stage').classList.toggle('hide', v !== 'stage');
+  $('#tune').classList.toggle('hide', v !== 'tune');
+  $$('.views button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+  document.documentElement.lang = 'en';
+  if (location.hash.slice(1).split('&')[0] !== v) history.replaceState(null, '', '#' + v);
+  dirtyAll = true;
+  if (v === 'tune') { tuChain.layout(true); } else stChain.layout(true);
+}
+
+async function boot() {
+  const h = await (await fetch('api/history')).json();
+  Object.assign(S, {meta: h.meta, status: h.status || {}, defs: h.defs, secs: h.secs, segs: h.segs, emptySegs: h.empty_segs,
+    series: h.series, frames: h.frames, marks: h.marks, events: h.events, notes: h.notes, seq: h.seq});
+  S.frameT = S.frames.map(f => f.t);
+  indexDefs(); recomputeRange();
+  const live = S.meta.mode === 'live';
+  S.T = S.t0; S.follow = live;
+  S.cut = (!live && S.meta.cut && S.meta.cut.pieces && S.meta.cut.pieces.length) ? S.meta.cut : null;
+  if (S.cut) { S.C = 0; S.T = cutW(0); }
+  $('#stRoute').textContent = `${S.meta.title.from} to ${S.meta.title.to}`;
+  $('#stKm').textContent = `${S.meta.title.km} km`;
+  stChain = new Chain($('#stChain'), 'en', true);
+  tuChain = new Chain($('#tuChain'), 'zh', false);
+  buildSections(); renderNotes(); renderEvents(); fillPickers(); renderCompare(); bindTimeline();
+
+  $$('.views button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  $('#stPlay').addEventListener('click', togglePlay); $('#tuPlay').addEventListener('click', togglePlay);
+  $('#stLive').addEventListener('click', goLive); $('#tuLive').addEventListener('click', goLive);
+  for (const id of ['stSpeed', 'tuSpeed']) $('#' + id).addEventListener('change', e => { S.speed = +e.target.value; $('#stSpeed').value = $('#tuSpeed').value = e.target.value; });
+  $('#stSeek').addEventListener('input', e => S.cut ? seekClip(S.cut.total * e.target.value / 1000) : seekTo(S.t0 + (S.t1 - S.t0) * e.target.value / 1000));
+  $('#tuSkip').addEventListener('change', e => { S.skip = e.target.checked; });
+  $('#win').addEventListener('change', e => { S.win = e.target.value; dirtyAll = true; });
+  for (const w of ['A', 'B']) $('#sel' + w).addEventListener('change', () => pickChanged(w));
+  $('#skipS').addEventListener('change', () => { for (const w of ['A', 'B']) if (($('#sel' + w).value || '')[0] === 'm') pickChanged(w); });
+  $$('[data-set]').forEach(b => b.addEventListener('click', () => {
+    const w = b.dataset.set[0], end = b.dataset.set[1] === '1', r = (S[w] || [S.T, S.T + 30]).slice();
+    r[end ? 1 : 0] = S.T;
+    if (r[1] <= r[0]) { if (end) r[0] = Math.max(S.t0, r[1] - 30); else r[1] = Math.min(S.t1, r[0] + 30); }
+    setRange(w, r, true);
+  }));
+  $('#events').addEventListener('click', e => { const tr = e.target.closest('tr[data-t]'); if (tr) seekTo(+tr.dataset.t); });
+  addEventListener('keydown', e => {
+    if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
+    if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowLeft') S.cut ? seekClip(S.C - (e.shiftKey ? 1 : 5)) : seekTo(S.T - (e.shiftKey ? 1 : 5));
+    else if (e.key === 'ArrowRight') S.cut ? seekClip(S.C + (e.shiftKey ? 1 : 5)) : seekTo(S.T + (e.shiftKey ? 1 : 5));
+    else if (e.key === '[' || e.key === ']') { S.mediaOff = Math.round((S.mediaOff + (e.key === ']' ? 0.5 : -0.5)) * 10) / 10; V.zkey = ''; dirtyAll = true; vidUi(); }
+  });
+  addEventListener('resize', () => { dirtyAll = true; });
+  addEventListener('scroll', () => { if (S.view === 'tune') dirtyAll = true; }, {passive: true});
+
+  $('#vidFile').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    dropLocalVid();
+    const m = /(?:^|\D)(20\d\d)(\d\d)(\d\d)[-_T](\d\d)(\d\d)(\d\d)(?!\d)/.exec(file.name);
+    const start = m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime() / 1000 : null;
+    S.localVid = {name: file.name, url: URL.createObjectURL(file), start: isFinite(start) ? start : null, dur: null, local: true};
+    V.name = null; dirtyAll = true; vidUi();
+  });
+  $('#vidCap').addEventListener('click', e => {
+    if (e.target.id === 'cutSnd') { S.cutSound = !S.cutSound; }
+    else if (e.target.id === 'vidRm') { dropLocalVid(); V.name = null; vidUi(); }
+    else if (e.target.id === 'vidGo') { const g = videoSegs()[0]; if (g) seekTo(g.start + S.mediaOff); }
+  });
+  $('#vidCap').addEventListener('change', e => {
+    if (e.target.id !== 'vidAt' || !S.localVid) return;
+    const t = new Date(e.target.value).getTime() / 1000;
+    if (isFinite(t)) { S.localVid.start = t; V.name = null; dirtyAll = true; vidUi(); }
+  });
+  $('#vid').addEventListener('loadedmetadata', () => {
+    const g = videoSegs().find(k => k.name === V.name) || (S.localVid && S.localVid.name === V.name ? S.localVid : null);
+    if (g && g.dur == null && isFinite($('#vid').duration)) { g.dur = $('#vid').duration; dirtyAll = true; }
+  });
+  $('#tuMedia').addEventListener('change', e => {
+    if (e.target.id === 'vidOff') { S.mediaOff = +e.target.value || 0; V.name = null; dirtyAll = true; vidUi(); }
+  });
+  await loadMedia();
+  setInterval(loadMedia, live ? 10000 : 30000);
+
+  syncButtons();
+  const hp = location.hash.slice(1).split('&'), ht = hp.map(x => /^t=([\d.]+)$/.exec(x)).find(Boolean);
+  if (ht && !live) seekTo(+ht[1]);
+  const hc = hp.map(x => /^c=([\d.]+)$/.exec(x)).find(Boolean);
+  if (hc && S.cut) seekClip(+hc[1]);
+  setView(hp[0] === 'tune' ? 'tune' : 'stage');
+  if (live) openStream();
+  window.LP = {S, V, CW, seekTo, seekClip, setView, setRange, frameAt, valueAt, segAt, videoSegs};
+  requestAnimationFrame(loop);
+}
+boot().catch(err => {
+  document.body.insertAdjacentHTML('afterbegin', `<p style="padding:16px 40px;color:#17231f">Could not load data from the collector. Start it with <code>python3 linkpanel.py replay RUN_DIR</code> and reload. (${esc(err.message)})</p>`);
+});
+</script>
+</body>
+</html>
